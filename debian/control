@@ -1,0 +1,20 @@
+Source: sublogmon
+Section: devel
+Priority: extra
+Maintainer: Alexsandr Kibal <ak@subgraph.com>
+Build-Depends: debhelper (>= 10),
+               dh-golang,
+               golang-any,
+               golang-dbus-dev,
+               golang-subgraph-inotify-dev
+Standards-Version: 3.9.8
+Homepage: https://github.com/subgraph/sublogmon
+XS-Go-Import-Path: github.com/subgraph/sublogmon
+
+Package: sublogmon
+Architecture: any
+Built-Using: ${misc:Built-Using}
+Depends: ${shlibs:Depends},
+         ${misc:Depends}
+Description: log monitor for SubgraphOS
+ sublogmon Critical event/security log monitor for Subgraph environment.
