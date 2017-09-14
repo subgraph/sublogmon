@@ -140,6 +140,13 @@
       "OutputStr":  "Subgraph Firewall: denied {msg}",
       "OutputAttr": "ANSI_COLOR_RED_BOLD",
       "Severity":   "alert"
+    },
+    { "ID":	   "tlsguard",
+      "Regexp":    "TLSGuard violation: (?P<msg>.+): (?P<reason>.+)",
+      "Fields":    ["msg","reason"],
+      "OutputStr": "TLSGuard Violation: {msg}: {reason}",
+      "OutputAttr": "ANSI_COLOR_RED_BOLD",
+      "Severity":   "critical"
     }
   ]
 }
