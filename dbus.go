@@ -83,8 +83,8 @@ func newDbusServer() (*dbusServer, error) {
 	return ds, nil
 }
 
-func (ds *dbusServer) Logger(id string, level uint16, timestamp uint64, logline string) (bool, *dbus.Error) {
+func (ds *dbusServer) Logger(id string, level string, timestamp uint64, logline string) (bool, *dbus.Error) {
 	fmt.Printf("<- Logger(id=%s, level=%v, timestamp=%v, line = [%s])\n", id, level, timestamp, logline)
-	globalDBO.alertObj(id, string(level), int64(timestamp), logline, logline, nil)
+	globalDBO.alertObj(id, level, int64(timestamp), logline, logline, nil)
 	return true, nil
 }
