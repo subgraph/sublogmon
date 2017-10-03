@@ -12,7 +12,6 @@ import "flag"
 import "path/filepath"
 import "time"
 
-//import fsnotify "gopkg.in/fsnotify.v1"
 import inotify "github.com/subgraph/inotify"
 
 var colorsMap = map[string]string{
@@ -24,7 +23,6 @@ var colorsMap = map[string]string{
 }
 
 const AUDIT_LOG_FILE = "/var/log/audit/audit.log"
-
 const BUFSIZE = 4096
 
 type LogFunc func(string) string
@@ -40,7 +38,7 @@ type LogFilter struct {
 	Fields     []string
 	OutputStr  string
 	OutputAttr string
-	Severity string
+	Severity   string
 	Regcomp    *regexp.Regexp
 }
 
@@ -54,12 +52,13 @@ type LogAuditFile struct {
 }
 
 type LogSuppression struct {
-        Description string
-        Metadata map[string]string
+	Description string
+	Metadata    map[string]string
 }
 
 var AuditLogs []LogAuditFile
 var Suppressions []LogSuppression
+var globalDBO *dbusObject
 
 var (
 	LogFunctions = []LogFunction{
@@ -280,15 +279,19 @@ func main() {
 		}
 	}
 
-/*		fmt.Println("Attempting test...")
-		testRegexp(2, 1, "Mar  8 22:09:55 subgraph oz-daemon[23280]: 2017/03/08 22:09:55 [spotify] (stderr) E [FATAL] Seccomp filter compile failed: /var/lib/oz/cells.d/spotify-whitelist.seccomp:18: unexpected end of line")
-		fmt.Println("Exiting.")
-		os.Exit(0) */
+	/*		fmt.Println("Attempting test...")
+			testRegexp(2, 1, "Mar  8 22:09:55 subgraph oz-daemon[23280]: 2017/03/08 22:09:55 [spotify] (stderr) E [FATAL] Seccomp filter compile failed: /var/lib/oz/cells.d/spotify-whitelist.seccomp:18: unexpected end of line")
+			fmt.Println("Exiting.")
+			os.Exit(0) */
 
-
-	dbo, err := newDbusObject()
+	_, err = newDbusServer()
 	if err != nil {
-		log.Fatal("Error connecting to SystemBus: %v", err)
+		log.Fatal("Error setting up DBus listener:", err)
+	}
+
+	globalDBO, err = newDbusObject()
+	if err != nil {
+		log.Fatal("Error connecting to system bus:", err)
 	}
 
 	if os.Getuid() > 0 {
@@ -352,7 +355,7 @@ func main() {
 		}
 		//	err = watcher.AddWatch(AuditLogs[i].PathName, inotify.IN_MODIFY)
 		err = watcher.AddWatch(AuditLogs[i].PathName, inotify.IN_ALL_EVENTS)
-//		err = watcher.Add(AuditLogs[i].PathName)
+		//		err = watcher.Add(AuditLogs[i].PathName)
 
 		if err != nil {
 			log.Fatal("Could not set up watcher on log file: ", err)
@@ -360,14 +363,13 @@ func main() {
 
 	}
 
-
 	for dname, _ := range parentDirs {
 
 		if *debug {
 			fmt.Println("Adding inotify watcher for parent directory events:", dname)
 		}
 
-//		err = watcher.Add(dname)
+		//		err = watcher.Add(dname)
 		err = watcher.AddWatch(dname, inotify.IN_ALL_EVENTS|inotify.IN_ISDIR)
 
 		if err != nil {
@@ -385,7 +387,7 @@ func main() {
 	for {
 
 		select {
-//		case ev := <-watcher.Events:
+		//		case ev := <-watcher.Events:
 		case ev := <-watcher.Event:
 			// fmt.Println("watcher event")
 			// log.Println("event: ", ev)
@@ -411,7 +413,7 @@ func main() {
 				continue
 			}
 
-			if ev.Mask & (inotify.IN_MODIFY | inotify.IN_CREATE | inotify.IN_DELETE | inotify.IN_DELETE_SELF | inotify.IN_MOVE_SELF | inotify.IN_ISDIR | inotify.IN_OPEN | inotify.IN_MOVED_TO | inotify.IN_MOVED_FROM) == 0 {
+			if ev.Mask&(inotify.IN_MODIFY|inotify.IN_CREATE|inotify.IN_DELETE|inotify.IN_DELETE_SELF|inotify.IN_MOVE_SELF|inotify.IN_ISDIR|inotify.IN_OPEN|inotify.IN_MOVED_TO|inotify.IN_MOVED_FROM) == 0 {
 				fmt.Printf("Received unexpected notification event type (%x)... ignoring.\n", ev.Mask)
 				continue
 			}
@@ -445,7 +447,7 @@ func main() {
 			// XXX: At the moment it seems the only event not handled properly if is a log file is opened with O_TRUNC.
 			// There does not seem to be any clean way to detect this; therefore the initial write to such a file will be missed by the monitor.
 
-			if ev.Mask & inotify.IN_CREATE == inotify.IN_CREATE {
+			if ev.Mask&inotify.IN_CREATE == inotify.IN_CREATE {
 
 				if *debug {
 					fmt.Println("Looks like a monitored file just rolled over: ", ev.Name)
@@ -459,7 +461,7 @@ func main() {
 					log.Fatal("Error re-opening rolled log file ", AuditLogs[i].PathName, ": ", err)
 				}
 
-			} else if ev.Mask & (inotify.IN_MOVED_TO|inotify.IN_MOVED_FROM) != 0 {
+			} else if ev.Mask&(inotify.IN_MOVED_TO|inotify.IN_MOVED_FROM) != 0 {
 				if *debug {
 					fmt.Println("Looks like a monitored file just rolled over (rename): ", ev.Name)
 				}
@@ -480,7 +482,7 @@ func main() {
 
 			}
 
-			if ev.Mask & inotify.IN_MODIFY != inotify.IN_MODIFY {
+			if ev.Mask&inotify.IN_MODIFY != inotify.IN_MODIFY {
 				continue
 			}
 
@@ -561,7 +563,7 @@ func main() {
 						if last_buf == outstr {
 							last_repeat++
 							fmt.Print("\r", colorsMap["ANSI_COLOR_GREEN"], "--- Suppressed identical output line ", last_repeat, " times.", colorsMap["ANSI_COLOR_RESET"])
-							dbo.alertObj(AuditLogs[i].Filters[j].ID, AuditLogs[i].Filters[j].Severity, now, alertstr, curLine, rmap)
+							globalDBO.alertObj(AuditLogs[i].Filters[j].ID, AuditLogs[i].Filters[j].Severity, now, alertstr, curLine, rmap)
 							break
 						} else {
 
@@ -575,7 +577,7 @@ func main() {
 						}
 
 						fmt.Println("* ", outstr)
-						dbo.alertObj(AuditLogs[i].Filters[j].ID, AuditLogs[i].Filters[j].Severity, now, alertstr, curLine, rmap)
+						globalDBO.alertObj(AuditLogs[i].Filters[j].ID, AuditLogs[i].Filters[j].Severity, now, alertstr, curLine, rmap)
 						break
 					}
 
